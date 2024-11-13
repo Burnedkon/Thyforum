@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThyForum - Powered by BurnedKon & Afderzz</title>
+    <style>
+        /* Watermelon color scheme */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #FF7F7F; /* Watermelon pink */
+            color: white;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            text-align: center;
+            background-color: #FF3B3B; /* Deep watermelon red */
+            padding: 20px;
+        }
+
+        button {
+            background-color: #00B200; /* Watermelon green */
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #008000;
+        }
+
+        .main-content {
+            padding: 20px;
+        }
+
+        #posts-section, #groups-section {
+            margin-top: 20px;
+        }
+
+        input {
+            padding: 10px;
+            width: 80%;
+            margin-top: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: #FF3B3B;
+            color: white;
+        }
+
+        h1, h2 {
+            color: white;
+        }
+
+        #post-list, #group-list {
+            margin-top: 10px;
+        }
+
+        .comment-section {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #FFB6B6;
+            border-radius: 5px;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to ThyForum</h1>
+        <button id="login-btn">Login</button>
+        <button id="logout-btn" style="display: none;">Logout</button>
+    </header>
+
+    <div class="main-content">
+        <div id="create-group">
+            <h2>Create a Group</h2>
+            <input type="text" id="group-name" placeholder="Group Name">
+            <button id="create-group-btn">Create Group</button>
+        </div>
+
+        <div id="posts-section">
+            <h2>Forum Posts</h2>
+            <input type="text" id="post-text" placeholder="What's on your mind?" />
+            <button id="post-btn">Post</button>
+            <div id="post-list"></div>
+        </div>
+
+        <div id="groups-section">
+            <h2>Your Groups</h2>
+            <div id="group-list"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Credits to BurnedKon and Afderzz</p>
+    </footer>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAl3eqFYTgar3l97-JLX6ee6yhveqf_nVQ",
+            authDomain: "thyforumm.firebaseapp.com",
+            projectId: "thyforumm",
+            storageBucket: "thyforumm.firebasestorage.app",
+            messagingSenderId: "23733239837",
+            appId: "1:23733239837:web:be46fcbeef217414a3c6f4",
+            measurementId: "G-KDRFK8B2Y2"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Get elements
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const postText = document.getElementById('post-text');
+        const postBtn = document.getElementById('post-btn');
+        const createGroupBtn = document.getElementById('create-group-btn');
+        const groupNameInput = document.getElementById('group-name');
+        const postList = document.getElementById('post-list');
+        const groupList = document.getElementById('group-list');
+
+        // User authentication state listener
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'inline-block';
+                loadPosts();
+                loadGroups();
+            } else {
+                loginBtn.style.display = 'inline-block';
+                logoutBtn.style.display = 'none';
+            }
+        });
+
+        // Login with Google
+        loginBtn.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider);
+        });
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            auth.signOut();
+        });
+
+        // Create a new post
+        postBtn.addEventListener('click', async () => {
+            const text = postText.value;
+            if (text) {
+                await db.collection('posts').add({
+                    text,
+                    userId: auth.currentUser.uid,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                postText.value = '';
+            }
+        });
+
+        // Load posts from Firestore
+        async function loadPosts() {
+            const postsSnapshot = await db.collection('posts').orderBy('timestamp', 'desc').get();
+            postList.innerHTML = '';
+            postsSnapshot.forEach(doc => {
+                const post = doc.data();
+                const postElement = document.createElement('div');
+                postElement.innerHTML = `<p>${post.text}</p><button onclick="loadComments('${doc.id}')">Comment</button><div id="comments-${doc.id}" class="comment-section"></div>`;
+                postList.appendChild(postElement);
+            });
+        }
+
+        // Load comments for a post
+        async function loadComments(postId) {
+            const commentsSnapshot = await db.collection('posts').doc(postId).collection('comments').get();
+            const commentsDiv = document.getElementById(`comments-${postId}`);
+            commentsDiv.innerHTML = '';
+            commentsSnapshot.forEach(commentDoc => {
+                const comment = commentDoc.data();
+                const commentElement = document.createElement('div');
+                commentElement.innerHTML = `<p>${comment.text}</p>`;
+                commentsDiv.appendChild(commentElement);
+            });
+
+            // Allow users to add a comment
+            const commentInput = document.createElement('input');
+            commentInput.placeholder = "Add a comment...";
+            const commentButton = document.createElement('button');
+            commentButton.innerText = 'Post Comment';
+
+            commentButton.addEventListener('click', async () => {
+                const commentText = commentInput.value;
+                if (commentText) {
+                    await db.collection('posts').doc(postId).collection('comments').add({
+                        text: commentText,
+                        userId: auth.currentUser.uid,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    commentInput.value = '';
+                    loadComments(postId); // Reload comments after posting
+                }
+            });
+
+            commentsDiv.appendChild(commentInput);
+            commentsDiv.appendChild(commentButton);
+        }
+
+        // Create a new group
+        createGroupBtn.addEventListener('click', async () => {
+            const groupName = groupNameInput.value;
+            if (groupName) {
+                await db.collection('groups').add({
+                    name: groupName,
+                    userId: auth.currentUser.uid,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                groupNameInput.value = '';
+                loadGroups();
+            }
+        });
+
+        // Load groups from Firestore
+        async function loadGroups() {
+            const groupsSnapshot = await db.collection('groups').get();
+            groupList.innerHTML = '';
+            groupsSnapshot.forEach(doc => {
+                const group = doc.data();
+                const groupElement = document.createElement('div');
+                groupElement.innerHTML = `<h3>${group.name}</h3><button onclick="joinGroup('${doc.id}')">Join</button>`;
+                groupList.appendChild(groupElement);
+            });
+        }
+
+        // Join a group (example functionality)
+        async function joinGroup(groupId) {
+            const groupRef = db.collection('groups').doc(groupId);
+            const groupDoc = await groupRef.get();
+            if (groupDoc.exists) {
+                alert(`You have joined the group: ${groupDoc.data().name}`);
+            }
+        }
+    </script>
+</body>
+</html>
+
